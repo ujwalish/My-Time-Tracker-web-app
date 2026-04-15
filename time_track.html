@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #1c0500 0%, #7c2d12 55%, #c2410c 100%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem 3rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+
+    header p {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0.4;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Timer card ─────────────────────────────── */
+    .card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 1.75rem;
+      padding: 2rem 2.5rem 2.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .mode-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.9rem;
+      border-radius: 9999px;
+      transition: background 0.4s, color 0.4s;
+    }
+    .mode-badge.work  { background: rgba(251,146,60,0.25);  color: #fed7aa; }
+    .mode-badge.brk   { background: rgba(52,211,153,0.22);  color: #a7f3d0; }
+
+    /* ── SVG Ring ───────────────────────────────── */
+    .ring-wrap {
+      position: relative;
+      width: 240px;
+      height: 240px;
+    }
+
+    .ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.09);
+      stroke-width: 9;
+    }
+
+    .ring-fg {
+      fill: none;
+      stroke-width: 9;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.5s ease;
+    }
+    .ring-fg.work { stroke: #fb923c; }
+    .ring-fg.brk  { stroke: #34d399; }
+
+    .ring-glow {
+      fill: none;
+      stroke-width: 18;
+      stroke-linecap: round;
+      opacity: 0.12;
+      transition: stroke-dashoffset 1s linear, stroke 0.5s ease;
+    }
+    .ring-glow.work { stroke: #fb923c; }
+    .ring-glow.brk  { stroke: #34d399; }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.2rem;
+    }
+
+    .time-text {
+      font-size: 3.25rem;
+      font-weight: 200;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .session-sub {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.45;
+    }
+
+    /* ── Buttons ────────────────────────────────── */
+    .controls {
+      display: flex;
+      gap: 0.65rem;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 0.75rem;
+      padding: 0.65rem 1.5rem;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+      letter-spacing: 0.03em;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-main {
+      min-width: 105px;
+      background: linear-gradient(135deg, #fb923c, #ea580c);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(234,88,12,0.45);
+    }
+    .btn-main:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(234,88,12,0.55); }
+    .btn-main.brk-style {
+      background: linear-gradient(135deg, #34d399, #059669);
+      box-shadow: 0 4px 18px rgba(5,150,105,0.4);
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.75);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.17); }
+
+    /* ── Settings ───────────────────────────────── */
+    .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.09); }
+
+    .settings {
+      width: 100%;
+      display: flex;
+      gap: 0.9rem;
+    }
+
+    .setting {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .setting label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.5;
+    }
+
+    .setting input[type="number"] {
+      background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 0.5rem;
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 0.45rem 0.5rem;
+      width: 100%;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .setting input[type="number"]:focus { outline: none; border-color: rgba(251,146,60,0.6); }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    /* ── Stats section ──────────────────────────── */
+    .stats {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.055);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 1.25rem;
+      padding: 1.1rem 1.35rem;
+    }
+
+    .stat-label {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      opacity: 0.4;
+      margin-bottom: 0.7rem;
+    }
+
+    /* Today */
+    .today-row {
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+    }
+
+    .big-num {
+      font-size: 2.75rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #fb923c;
+    }
+
+    .today-meta { display: flex; flex-direction: column; gap: 0.15rem; }
+    .today-meta strong { font-size: 0.875rem; font-weight: 500; }
+    .today-meta span { font-size: 0.72rem; opacity: 0.45; }
+
+    .tomatoes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.65rem;
+      min-height: 1.5rem;
+    }
+
+    .tomato { font-size: 1.15rem; line-height: 1; }
+
+    /* Weekly chart */
+    .chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.45rem;
+      height: 72px;
+    }
+
+    .day-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.3rem;
+      height: 100%;
+    }
+
+    .bar-area {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .bar {
+      width: 100%;
+      border-radius: 3px 3px 0 0;
+      background: linear-gradient(180deg, #fb923c 0%, #9a3412 100%);
+      transition: height 0.5s cubic-bezier(.4,0,.2,1);
+    }
+    .bar.today-bar { background: linear-gradient(180deg, #fcd34d 0%, #d97706 100%); }
+    .bar.zero { opacity: 0.2; }
+
+    .bar-count {
+      font-size: 0.6rem;
+      opacity: 0.55;
+      min-height: 0.75rem;
+    }
+
+    .day-name {
+      font-size: 0.6rem;
+      opacity: 0.4;
+      text-align: center;
+    }
+    .day-name.today-label { opacity: 0.75; color: #fcd34d; }
+
+    /* Pulse animation while running */
+    @keyframes pulse-ring {
+      0%   { opacity: 0.12; }
+      50%  { opacity: 0.22; }
+      100% { opacity: 0.12; }
+    }
+    .running .ring-glow { animation: pulse-ring 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Pomodoro</h1>
+  <p>Stay focused, one session at a time</p>
+</header>
+
+<div class="card" id="timerCard">
+  <div class="mode-badge work" id="modeBadge">Work Session</div>
+
+  <div class="ring-wrap" id="ringWrap">
+    <svg class="ring-svg" viewBox="0 0 240 240" aria-hidden="true">
+      <circle class="ring-bg"  cx="120" cy="120" r="104"/>
+      <circle class="ring-glow work" id="ringGlow"
+        cx="120" cy="120" r="104"
+        stroke-dasharray="653.45"
+        stroke-dashoffset="0"/>
+      <circle class="ring-fg work" id="ringFg"
+        cx="120" cy="120" r="104"
+        stroke-dasharray="653.45"
+        stroke-dashoffset="0"/>
+    </svg>
+    <div class="ring-center">
+      <div class="time-text" id="timeDisplay">25:00</div>
+      <div class="session-sub" id="sessionSub">Focus time</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-main" id="mainBtn" onclick="toggleTimer()">Start</button>
+    <button class="btn-ghost" onclick="resetTimer()">Reset</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="settings">
+    <div class="setting">
+      <label>Work (min)</label>
+      <input type="number" id="workInput" value="25" min="1" max="90" onchange="updateSettings()">
+    </div>
+    <div class="setting">
+      <label>Break (min)</label>
+      <input type="number" id="breakInput" value="5" min="1" max="60" onchange="updateSettings()">
+    </div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-label">Today</div>
+    <div class="today-row">
+      <div class="big-num" id="todayNum">0</div>
+      <div class="today-meta">
+        <strong>Sessions completed</strong>
+        <span id="todayMins">0 minutes of focus</span>
+      </div>
+    </div>
+    <div class="tomatoes" id="tomatoes"></div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">This Week</div>
+    <div class="chart" id="chart"></div>
+  </div>
+</div>
+
+<script>
+  // ── Constants ───────────────────────────────────
+  const RADIUS = 104;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS; // 653.45
+
+  // ── DOM refs ────────────────────────────────────
+  const ringFg      = document.getElementById('ringFg');
+  const ringGlow    = document.getElementById('ringGlow');
+  const ringWrap    = document.getElementById('ringWrap');
+  const timerCard   = document.getElementById('timerCard');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const sessionSub  = document.getElementById('sessionSub');
+  const modeBadge   = document.getElementById('modeBadge');
+  const mainBtn     = document.getElementById('mainBtn');
+  const todayNum    = document.getElementById('todayNum');
+  const todayMins   = document.getElementById('todayMins');
+  const tomatoes    = document.getElementById('tomatoes');
+  const workInput   = document.getElementById('workInput');
+  const breakInput  = document.getElementById('breakInput');
+
+  // ── State ────────────────────────────────────────
+  let mode        = 'work';
+  let isRunning   = false;
+  let timeLeft    = 0;
+  let totalTime   = 0;
+  let timerId     = null;
+  let workDur     = 25;
+  let breakDur    = 5;
+
+  // ── Boot ─────────────────────────────────────────
+  function init() {
+    workDur  = parseInt(workInput.value);
+    breakDur = parseInt(breakInput.value);
+    setMode('work', false);
+    renderStats();
+  }
+
+  // ── Timer control ────────────────────────────────
+  function toggleTimer() {
+    isRunning ? pause() : start();
+  }
+
+  function start() {
+    isRunning = true;
+    mainBtn.textContent = 'Pause';
+    ringWrap.classList.add('running');
+    timerId = setInterval(tick, 1000);
+  }
+
+  function pause() {
+    isRunning = false;
+    mainBtn.textContent = 'Resume';
+    ringWrap.classList.remove('running');
+    clearInterval(timerId);
+  }
+
+  function resetTimer() {
+    clearInterval(timerId);
+    isRunning = false;
+    ringWrap.classList.remove('running');
+    setMode('work', false);
+    mainBtn.textContent = 'Start';
+    renderStats();
+  }
+
+  function tick() {
+    if (timeLeft <= 0) {
+      onSessionEnd();
+      return;
+    }
+    timeLeft--;
+    updateRing();
+    updateTimeDisplay();
+  }
+
+  function onSessionEnd() {
+    clearInterval(timerId);
+    isRunning = false;
+    ringWrap.classList.remove('running');
+    playSound();
+
+    if (mode === 'work') {
+      recordSession();
+      renderStats();
+      setMode('break', false);
+      mainBtn.textContent = 'Start Break';
+    } else {
+      setMode('work', false);
+      mainBtn.textContent = 'Start';
+    }
+
+    // Auto-start after brief pause
+    setTimeout(start, 1200);
+  }
+
+  // ── Mode switching ───────────────────────────────
+  function setMode(m, autoStart) {
+    mode = m;
+    const isWork = m === 'work';
+
+    timeLeft  = (isWork ? workDur : breakDur) * 60;
+    totalTime = timeLeft;
+
+    // Badge
+    modeBadge.textContent = isWork ? 'Work Session' : 'Break Time';
+    modeBadge.className   = 'mode-badge ' + (isWork ? 'work' : 'brk');
+
+    // Ring
+    ringFg.className   = 'ring-fg '   + (isWork ? 'work' : 'brk');
+    ringGlow.className = 'ring-glow ' + (isWork ? 'work' : 'brk');
+
+    // Sub-label & btn
+    sessionSub.textContent = isWork ? 'Focus time' : 'Take a break';
+    mainBtn.classList.toggle('brk-style', !isWork);
+
+    updateRing();
+    updateTimeDisplay();
+    if (autoStart) start();
+  }
+
+  // ── UI updates ───────────────────────────────────
+  function updateTimeDisplay() {
+    const m = Math.floor(timeLeft / 60);
+    const s = timeLeft % 60;
+    const str = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    timeDisplay.textContent = str;
+    document.title = `${str} · ${mode === 'work' ? 'Focus' : 'Break'} | Pomodoro`;
+  }
+
+  function updateRing() {
+    const frac   = totalTime > 0 ? timeLeft / totalTime : 1;
+    const offset = CIRCUMFERENCE * (1 - frac);
+    ringFg.style.strokeDashoffset   = offset;
+    ringGlow.style.strokeDashoffset = offset;
+  }
+
+  // ── Settings ─────────────────────────────────────
+  function updateSettings() {
+    workDur  = Math.max(1, Math.min(90, parseInt(workInput.value)  || 25));
+    breakDur = Math.max(1, Math.min(60, parseInt(breakInput.value) || 5));
+    workInput.value  = workDur;
+    breakInput.value = breakDur;
+    if (!isRunning) {
+      timeLeft  = (mode === 'work' ? workDur : breakDur) * 60;
+      totalTime = timeLeft;
+      updateRing();
+      updateTimeDisplay();
+    }
+    renderStats();
+  }
+
+  // ── History ──────────────────────────────────────
+  function todayKey() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem('pom_history') || '{}'); }
+    catch { return {}; }
+  }
+
+  function saveHistory(h) {
+    localStorage.setItem('pom_history', JSON.stringify(h));
+  }
+
+  function recordSession() {
+    const h = loadHistory();
+    const k = todayKey();
+    h[k] = (h[k] || 0) + 1;
+    saveHistory(h);
+  }
+
+  // ── Stats rendering ──────────────────────────────
+  function renderStats() {
+    const h = loadHistory();
+    const today = todayKey();
+    const n = h[today] || 0;
+
+    todayNum.textContent  = n;
+    todayMins.textContent = `${n * workDur} minutes of focus`;
+    tomatoes.innerHTML    = Array(n).fill('<span class="tomato">🍅</span>').join('');
+
+    renderChart(h, today);
+  }
+
+  function renderChart(h, today) {
+    const chart   = document.getElementById('chart');
+    const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const now = new Date();
+
+    const days = Array.from({length:7}, (_,i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() - (6 - i));
+      const k = d.toISOString().split('T')[0];
+      return { key: k, label: i===6 ? 'Today' : DAY_NAMES[d.getDay()], count: h[k]||0, isToday: i===6 };
+    });
+
+    const max = Math.max(...days.map(d=>d.count), 1);
+    const BAR_MAX_PX = 52;
+
+    chart.innerHTML = days.map(day => {
+      const barH = day.count > 0 ? Math.max(Math.round((day.count/max)*BAR_MAX_PX), 5) : 3;
+      return `
+        <div class="day-col">
+          <span class="bar-count">${day.count > 0 ? day.count : ''}</span>
+          <div class="bar-area">
+            <div class="bar ${day.isToday?'today-bar':''} ${day.count===0?'zero':''}"
+                 style="height:${barH}px"></div>
+          </div>
+          <span class="day-name ${day.isToday?'today-label':''}">${day.label}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Sound ────────────────────────────────────────
+  function playSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+      function beep(t, freq, dur) {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.35, t + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur + 0.05);
+      }
+
+      // Three ascending tones
+      beep(ctx.currentTime,       880,  0.35);
+      beep(ctx.currentTime + 0.4, 1047, 0.35);
+      beep(ctx.currentTime + 0.8, 1319, 0.5);
+    } catch(e) { /* audio blocked or unavailable */ }
+  }
+
+  // ── Go ───────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
